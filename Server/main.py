@@ -1,4 +1,6 @@
 import socket
+import threading
+import tkinter as tk
 import logging
 
 HOST = '127.0.0.1'
@@ -14,33 +16,61 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((HOST, PORT))
 server.listen(1)
 
-print("Server start")
-logging.info("Server started")
+conn = None
 
-conn, addr = server.accept()
-print("Client connected by", addr)
-logging.info(f"Client connected: {addr}")
+auto_answers = {
+    "привет": "Привет!",
+    "как дела?": "Хорошо, а ты?",
+    "что делаешь?": "Общаюсь с клиентом :)",
+    "exit": "Пока!",
+    "как тебя зовут?": "Я сервер-бот :)",
+    "чем занимаешься?": "Отвечаю на твои вопросы!"
+}
 
-while True:
-    data = conn.recv(1024)
-    if not data:
-        logging.info("Client disconnected")
-        break
+def start_server():
+    global conn
+    log.insert(tk.END, "Server started\n")
+    logging.info("Server started")
 
-    msg = data.decode()
-    print("Client msg:", msg)
-    logging.info(f"Received expression: {msg}")
+    conn, addr = server.accept()
+    log.insert(tk.END, f"Client connected: {addr}\n")
+    logging.info(f"Client connected: {addr}")
 
-    try:
-        result = str(eval(msg))
-        logging.info(f"Result: {result}")
-    except Exception as e:
-        result = "Error in expression"
-        logging.error(f"Error while evaluating '{msg}': {e}")
+    threading.Thread(target=receive_messages).start()
 
-    conn.send(result.encode())
 
-conn.close()
+def receive_messages():
+    global conn
+    while True:
+        data = conn.recv(1024)
+        if not data:
+            break
+
+        msg = data.decode()
+        log.insert(tk.END, "Client: " + msg + "\n")
+        logging.info(f"Received: {msg}")
+
+        reply = auto_answers.get(msg.lower(), "Не понимаю")
+        conn.send(reply.encode())
+        log.insert(tk.END, "Server: " + reply + "\n")
+        logging.info(f"Sent: {reply}")
+
+        if msg.lower() == "exit":
+            break
+
+
+root = tk.Tk()
+root.title("Server Chat")
+
+log = tk.Text(root, width=50, height=20)
+log.pack()
+
+threading.Thread(target=start_server).start()
+
+root.mainloop()
+
+if conn:
+    conn.close()
 server.close()
 logging.info("Server stopped")
 print("Server closed")
